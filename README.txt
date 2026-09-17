@@ -5,9 +5,11 @@ This kit is for a print supplier printing the name badges at the event.
 
 WHY IT MATTERS
 --------------
-We run the registration for this event, and it is built to keep every step
-simple for the delegate. They register once, and everything after that comes
-from that one record.
+We look after registration and check-in for this event; you look after the
+printing. This kit is here to make your side straightforward.
+
+Registration is built to keep each step simple for the delegate. They register
+once, and everything after that comes from that one record.
 Arriving at the venue is where it becomes physical: a delegate gives their name
 at a desk and should be wearing a correct badge a few seconds later, with a
 queue behind them.
@@ -27,7 +29,7 @@ We give you the delegate data and stay out of the printing. Our own events
 mostly run thermal labels, but nothing here assumes that. If you are printing
 onto plastic cards on a retransfer or direct-to-card printer, pre-printed or
 blank, that is exactly the case this was built for - there is nothing extra to
-switch on.
+switch on, and your printing stays as you run it today.
 
   - take the fields, not our picture. Everything you need is in "badge":
     name, nameLocal, organisation, job title, delegate type, qr and serial.
