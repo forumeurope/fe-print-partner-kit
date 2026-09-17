@@ -5,31 +5,30 @@ This kit is for a print supplier printing the name badges at the event.
 
 WHY IT MATTERS
 --------------
-Registration and check-in run on the platform; the badges come off the printers
-on site. This kit covers the join between them.
+Registration and check-in for this event run on our platform, and the badges
+are printed on site by the print supplier. This kit covers the join between the
+two.
 
-Registration keeps each step simple for the delegate: one registration, and
-everything after it comes from that record.
-Arriving at the venue is where it becomes physical: a delegate gives their name
-at a desk and should be wearing a correct badge a few seconds later, with a
-queue behind them.
+Registration is designed to keep every step simple for the delegate: they
+register once, and everything that follows comes from that single record. At
+the venue, that becomes physical. A delegate gives their name at the desk and
+should be wearing their badge a few seconds later, with a queue forming behind
+them. Two things follow from that moment:
 
-That badge is the part you are taking on, so two things shape everything here:
-
-  - it has to be quick. The desk waits 10 seconds for you to collect a badge,
+  - it has to be quick. The desk waits 10 seconds for a badge to be collected,
     which is why we ask for a cable rather than Wi-Fi.
-  - it has to be right, once. The badge gets the delegate through the door and
-    past our scanners all week. A code that does not scan stops them at a
-    barrier, and a second badge for the same person is refused at the door
-    later. Read NEVER PRINT A BADGE TWICE below.
+  - it has to be right, once. The badge has to pass the door scanners all
+    week. A code that does not scan stops a delegate at a barrier, and a
+    duplicate badge is refused at the door later on. Read NEVER PRINT A BADGE
+    TWICE below.
 
-YOUR PRINTER, YOUR CARDS, YOUR DESIGN
--------------------------------------
-We give you the delegate data and stay out of the printing. Our own events
-mostly run thermal labels, but nothing here assumes that. If you are printing
+EXISTING PRINTERS, CARDS AND DESIGNS
+------------------------------------
+This interface supplies the delegate data and stays out of the printing. Our
+own events mostly run thermal labels, but nothing here assumes that. Printing
 onto plastic cards on a retransfer or direct-to-card printer, pre-printed or
-blank, that is exactly the case this was built for - there is nothing extra to
-switch on, and the printing stays as it runs today.
+blank, is exactly the case this was built for: there is nothing extra to switch
+on, and the printing stays as it runs today.
 
   - take the fields, not our picture. Everything you need is in "badge":
     name, nameLocal, organisation, job title, delegate type, qr and serial.

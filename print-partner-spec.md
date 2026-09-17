@@ -4,41 +4,47 @@ Spec version 1 (17 September 2026). Changes are listed at the end.
 
 ## Why this exists
 
-Registration and check-in run on the platform; the badges come off the
-printers on site. This document covers the join between them.
+Registration and check-in for this event run on our platform, and the badges
+are printed on site by the print supplier. This document describes the join
+between the two.
 
-Registration keeps each step simple for the delegate: one registration, and
-everything after it comes from that record. At the venue it becomes physical —
-a name given at the desk, a badge worn a few seconds later, a queue behind. Two
-things follow from that moment:
+Registration is designed to keep every step simple for the delegate: they
+register once, and everything that follows comes from that single record. At
+the venue, that becomes physical. A delegate gives their name at the desk and
+should be wearing their badge a few seconds later, with a queue forming behind
+them. Two things follow from that moment:
 
-- **Quick.** The desk waits 10 seconds for a badge to be collected. Hence the
-  broadcast the instant it is asked for, and the cable rather than Wi-Fi.
-- **Right, once.** The badge has to pass the door scanners all week. A code
-  that does not scan stops a delegate at a barrier; a duplicate is refused at
-  the door later. Section 10 is the one part worth reading twice.
+- **It has to be quick.** The desk waits 10 seconds for a badge to be
+  collected, which is why the hub broadcasts the instant a badge is asked for,
+  and why the printing machine belongs on a cable rather than on Wi-Fi.
+- **It has to be right, once.** The badge has to pass the door scanners all
+  week. A code that does not scan stops a delegate at a barrier, and a
+  duplicate badge is refused at the door later on. Section 10 is the one part
+  worth reading twice.
 
-Anything here that would be easier in another shape is usually a setting at the
-hub end — worth asking before setup day.
+If anything in here would be easier in a different shape, it is usually a
+setting at the hub end, so it is worth asking before setup day.
 
 ## How it works
 
 A delegate checks in, and a desk iPad asks the print hub for their badge. In
-print partner mode the hub renders it, holds it, and broadcasts a small UDP
-message on port 8632 carrying a job id and a pickup URL. The collecting
-software fetches that URL, gets the badge as JSON, and prints it on its own
-printers and stock.
+print partner mode the hub renders the badge, holds it, and broadcasts a small
+UDP message on port 8632 carrying a job id and a pickup URL. The print
+supplier's software fetches that URL, receives the badge as JSON, and prints it
+on its own printers and stock.
 
 ## 1. What this interface is for
 
-**Printing the event's badges on an existing design and existing kit.** The
-design, the printing stack and the stock are already there. The missing piece
-is the delegate data, and that is what arrives per badge: name, name in the
-local script where one is held, organisation, job title, delegate type, the QR
-payload the door scanners read, the badge serial and the event name.
+**It lets the event's badges be printed on a design and a printing stack that
+already exist.** The design, the printers and the stock are all in place
+already; the missing piece is the delegate data. That is what each badge
+carries: the name, the name in the local script where one is held, the
+organisation, the job title, the delegate type, the QR payload the door
+scanners read, the badge serial and the event name.
 
-A finished picture (`image`) comes with it, and a PDF (`pdf`) on request — one
-word and it is switched on for this event. Either saves laying anything out.
+A finished picture of the badge (`image`) comes with it, and a PDF (`pdf`) is
+available on request — one word and it is switched on for this event. Either
+one removes the need to lay anything out.
 
 Two things must be right, whatever you print on:
 
@@ -48,8 +54,8 @@ Two things must be right, whatever you print on:
 ### Printing on your own cards
 
 Printing onto plastic cards, on a retransfer or direct-to-card printer, is the
-case this was built for, and there is nothing extra to switch on. The printing
-stays exactly as it runs today, fed with the delegate data.
+case this interface was built for, and there is nothing extra to switch on. The
+printing stays exactly as it runs today; it is simply fed the delegate data.
 
 - **Take the fields, not our picture.** `badge` (section 6) has everything:
   name, `nameLocal`, organisation, job title, type, `qr`, `serial`. Drop them
@@ -61,8 +67,8 @@ stays exactly as it runs today, fed with the delegate data.
 - **If your cards already carry the event artwork**, print only the variable
   data over them. `badge.type` is the usual field to colour-code by.
 
-If the data would be easier in a different shape, ask before setup day — it is
-usually a setting at the hub end.
+If the data would be easier to handle in a different shape, it is worth asking
+before setup day, because it is usually a setting at the hub end.
 
 ### The kit
 
@@ -103,19 +109,21 @@ treats it as handed over from that moment.
 
 ## 3. Who does what
 
-**From the hub side:** a port on the event network and a cable to it; the hub
-and its address on the day; one datagram per badge a desk asks for; the badge
-data (name, local-script name, organisation, job title, delegate type, QR
-payload, serial, event); a rendered PNG, and a PDF if the event turns it on;
-and the stand-in hub in the kit.
+**The hub side provides** a port on the event network and a cable to it, the
+hub and its address on the day, one datagram for every badge a desk asks for,
+and the badge data itself: the name, the name in the local script, the
+organisation, the job title, the delegate type, the QR payload, the serial and
+the event. It also provides a rendered PNG, a PDF if the event has that turned
+on, and the stand-in hub that comes with the kit.
 
-**From the print side:** a computer on that cable running all event; the
-listening and the polling; the design, printers, stock, ribbons, drivers and
-operators; dedupe, so one badge is printed once (section 10); and a test
-against the stand-in hub beforehand.
+**The printing side provides** a computer on that cable, running for the whole
+event, which listens for the datagrams and polls the waiting list. It also
+provides the design, the printers, the stock, the ribbons, the drivers and the
+operators, along with the deduplication that keeps each badge to a single print
+(section 10) and a test against the stand-in hub beforehand.
 
-That is the whole path. A question answered early beats one found on setup
-day.
+Between them, that is the whole path. A question answered now is easier than
+one found on setup day.
 
 ## 4. The network
 
@@ -599,24 +607,26 @@ and print the saved `<id>.pdf` on the stock you intend to use. `--no-pdf`
 behaves like an event with the setting off. `samples/pickup.pdf` is a badge our
 own hub produced, if you would rather print one before you write anything.
 
-**There is no joint test before the event** — the first meeting of the two
-systems is at the venue on setup day. That is why the stand-in hub is in the
-kit: same datagrams, same badges, same ports, same status codes, so a system
-that works against it works against the real one. Anything that does not
-behave, say so and we will look at it.
+**There is no joint test before the event.** The two systems meet for the first
+time at the venue on setup day, and that is exactly why the stand-in hub is in
+the kit. It sends the same datagrams and serves the same badges as the real
+one, on the same ports and with the same status codes, so a system that works
+against it will work against ours. If something does not behave, tell us and we
+will look at it.
 
 **Have ready on setup day:** the machine that will run all event, already
 working against the stand-in hub; your printers, stock and consumables; an
 Ethernet cable for our router; and somebody who can change your settings on the
 spot.
 
-On the day the hub goes into partner mode and sends a test badge. It also
-serves a page at `http://<hub>:8631/` with **Use print partner mode**, **Send a
-sample print**, the last collection time and the number waiting — it can sit
-open on a screen by the printers during set-up.
+On the day, the hub is put into partner mode and sends a test badge. It also
+serves a page at `http://<hub>:8631/` offering **Use print partner mode** and
+**Send a sample print**, along with the time of the last collection and the
+number of badges waiting. That page can sit open on a screen by the printers
+during set-up.
 
-Our team is on site throughout. Anything odd, come and find us rather than
-working around it.
+Our team is on site throughout. If anything looks wrong, please come and find
+us rather than working around it.
 
 ## 14. Troubleshooting
 
