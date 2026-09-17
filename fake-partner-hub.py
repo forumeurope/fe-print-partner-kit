@@ -10,6 +10,7 @@ Python 3.10 or newer, standard library only. Windows, macOS and Linux.
     python fake-partner-hub.py --every 20       also send a sample badge every 20 s
     python fake-partner-hub.py --mode manage    answer 409, as a hub not in partner mode
     python fake-partner-hub.py --mode locked    answer 503, as a hub whose desk isn't started
+    python fake-partner-hub.py --no-pdf         send no PDF, as an event that didn't ask for one
 
 Then run your client against 127.0.0.1, or open http://127.0.0.1:8631/ and
 press "Send a sample print".
@@ -34,6 +35,24 @@ Unlike a real hub, badges wait until collected, so you can start your client lat
 
 A sample badge behaves exactly like a real one: it is announced, waits 10
 seconds for you, and is cancelled (410) if you didn't collect it.
+
+It also takes the two reports a partner may send back after printing:
+
+    POST /v1/prints/<id>/printed
+    POST /v1/prints/<id>/failed    {"reason": "out of ribbon"}
+
+Both are OPTIONAL by protocol — a client that never sends them collects and
+prints exactly as before — but they are the only way a desk can tell a jam from
+a badge already in a delegate's hand, so send them. Only the client that
+collected a badge may report on it. Each report is printed on this console and
+shown on the page, so you can watch yours land.
+
+Every badge here carries a `pdf` as well as the `image`: the same label as a
+one-page PDF at 102 x 64 mm (289.13 x 181.42 pt). A real hub sends it only when
+the event has "Send a PDF to the print partner" switched on, so treat it as
+optional. Start with --no-pdf to see the other half: no `pdf` key at all on any
+badge, the way an event with that setting off behaves. Run your client both ways
+— it must print from the picture, or from the badge data, when no PDF arrives.
 
 Differences from a real hub: nothing is kept after a restart, the picture is a
 plain placeholder, and datagrams also go to 127.0.0.1.
@@ -76,7 +95,13 @@ NOT_FOUND = ("There is no print with this id on this hub. Prints are kept for 10
 NOT_PICKED_UP = "Not picked up by the print partner. Check their system is on this network."
 ALREADY_COLLECTED = ("Another print partner client on this network already collected this badge, so it "
                      "is being printed. Run one collector, or give each one its own X-Print-Collector id.")
+NOT_YOURS = ("This badge was collected by a different print partner client, so only that client can "
+             "say what happened to it. Send the same X-Print-Collector you collected with.")
+NO_REPORT_TARGET = ("There is no print with this id on this hub. Prints are kept for 10 minutes, so a "
+                    "report that arrives long after the badge did has nowhere to land.")
 COLLECTOR_HEADER = "X-Print-Collector"
+REASON_MAX = 200    # the hub trims a partner's reason to one line of this length
+COLLECTOR_MAX = 100
 
 EVENT = {"id": "9a0e3c1d-2b4f-4e6a-8c7d-1f2e3d4c5b6a", "name": "Example Summit 2026"}
 
@@ -111,8 +136,57 @@ def make_png(width=816, height=512, border=6):
             + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
 
 
+def pdf_text(s):
+    return s.replace("\\", r"\\").replace("(", r"\(").replace(")", r"\)")
+
+
+def make_pdf(width_mm=102, height_mm=64, lines=("Stand-in hub", "sample badge", "102 x 64 mm")):
+    """A real one-page PDF the size of the label, in points (1 mm = 72/25.4 pt).
+
+    The hub sends the same badge as a PDF when the event has asked for one, so a
+    partner who prints the ready-made vector file can develop against it here.
+    This one is a frame and a few words; a real hub's is the badge itself, at the
+    same page size.
+    """
+    w = width_mm * 72.0 / 25.4
+    h = height_mm * 72.0 / 25.4
+    drawn = [f"0 0 0 RG 1 w 6 6 {w - 12:.2f} {h - 12:.2f} re S", "BT /F1 14 Tf"]
+    y = h - 28
+    for line in lines:
+        drawn.append(f"1 0 0 1 18 {y:.2f} Tm ({pdf_text(line)}) Tj")
+        y -= 20
+    drawn.append("ET")
+    content = ("\n".join(drawn)).encode("ascii")
+
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        (f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {w:.2f} {h:.2f}] "
+         f"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>").encode("ascii"),
+        b"<< /Length " + str(len(content)).encode("ascii") + b" >>\nstream\n" + content + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    out = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = []
+    for n, body in enumerate(objects, 1):
+        offsets.append(len(out))
+        out += f"{n} 0 obj\n".encode("ascii") + body + b"\nendobj\n"
+    start = len(out)
+    out += f"xref\n0 {len(objects) + 1}\n".encode("ascii") + b"0000000000 65535 f \n"
+    for off in offsets:
+        out += f"{off:010d} 00000 n \n".encode("ascii")
+    out += (f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{start}\n"
+            "%%EOF\n").encode("ascii")
+    return bytes(out)
+
+
 PNG_B64 = base64.b64encode(make_png()).decode("ascii")
 LOGO_B64 = base64.b64encode(make_png(120, 60, 4)).decode("ascii")
+PDF_B64 = base64.b64encode(make_pdf()).decode("ascii")
+
+# Whether badges carry a `pdf` at all. --no-pdf turns it off, which is what an
+# event with "Send a PDF to the print partner" switched off looks like on the wire.
+SEND_PDF = True
 
 # The layout the hub sends for the standard 102 x 64 mm label: mm from the printable area's corner.
 LAYOUT = {
@@ -174,6 +248,13 @@ def make_print(*, test, name, name_local=None, organisation=None, job_title=None
         },
         "size": {"widthMm": 102, "heightMm": 64},
         "image": {"contentType": "image/png", "dpi": 203, "widthPx": 816, "heightPx": 512, "base64": PNG_B64},
+        # OPTIONAL on a real hub: the same badge as a PDF at the label's exact mm
+        # size, sent only when the event asked for it. This stand-in sends one
+        # unless you start it with --no-pdf, so a partner who prints the PDF can
+        # develop against it; a partner who uses the PNG, or their own design,
+        # ignores it. With --no-pdf the key is absent, not null.
+        **({"pdf": {"contentType": "application/pdf", "widthMm": 102, "heightMm": 64,
+                    "base64": PDF_B64}} if SEND_PDF else {}),
         # The desk's badge behind this offer. The same across a desk retry, even
         # when the retry is offered under a new id: what a partner dedupes on.
         "jobKey": job_key or print_id,
@@ -194,6 +275,8 @@ class Hub:
         self.port = port
         self.jobs = {}  # id -> {"print", "created", "picked", "withdrawn", "event"}
         self.last_pickup = None
+        self.last_report = None   # what the last partner report said, for the page
+        self.reports = []         # every report this hub was told, newest last
         self.lock = threading.Lock()
 
     def add(self, p, withdrawn=False, sticky=False):
@@ -203,7 +286,7 @@ class Hub:
         with self.lock:
             self.jobs[p["id"]] = {"print": p, "created": time.monotonic(), "picked": None,
                                   "withdrawn": withdrawn, "sticky": sticky, "by": None,
-                                  "event": threading.Event()}
+                                  "report": None, "event": threading.Event()}
 
     def sweep(self):
         now = time.monotonic()
@@ -236,6 +319,57 @@ class Hub:
             if taken:
                 log(f"refused {print_id} to {collector or 'a client with no id'}: already collected")
             return j, taken
+
+    @staticmethod
+    def clean_reason(reason):
+        """The partner's words as the hub keeps them: one line, no control characters,
+        no double spaces, 200 characters at most. They go on a desk screen."""
+        if not isinstance(reason, str):
+            return None
+        line = " ".join("".join(" " if ch < " " else ch for ch in reason).split())
+        return line[:REASON_MAX] or None
+
+    def report(self, print_id, outcome, collector=None, reason=None):
+        """What a partner says it did with a badge it collected.
+
+        OPTIONAL by protocol: a partner that never calls this works exactly as
+        one that does. Answered like a collect, so a client that handles the
+        collect's codes needs nothing new:
+
+          * no such print          -> "unknown" (404)
+          * nobody holds it, or somebody else does -> "notyours" (409)
+          * the desk already gave up on it -> "cancelled", 200, applied false
+          * this job already carries a report -> "already reported", 200,
+            applied false; the FIRST report stands, so a client retrying a lost
+            reply cannot flip an outcome
+          * otherwise -> "recorded", 200, applied true
+        """
+        with self.lock:
+            self.sweep()
+            j = self.jobs.get(print_id)
+            if j is None:
+                return "unknown", None
+            if j["withdrawn"]:
+                # Too late to change anything, but telling a partner off for being
+                # honest is a good way to stop them reporting. Kept as a record.
+                if j["report"] is None:
+                    self._store(j, outcome, collector, reason)
+                return "cancelled", j
+            if not j["picked"] or not collector or j["by"] != collector:
+                return "notyours", j
+            if j["report"] is not None:
+                return "already reported", j
+            self._store(j, outcome, collector, reason)
+            return "recorded", j
+
+    def _store(self, j, outcome, collector, reason):
+        # A reason belongs to a failure: "printed" carries none, as the hub does.
+        report = {"outcome": outcome, "at": utc_now(), "by": collector,
+                  "reason": self.clean_reason(reason) if outcome == "failed" else None,
+                  "id": j["print"]["id"], "desk": j["print"].get("desk")}
+        j["report"] = report
+        self.reports.append(report)
+        self.last_report = report
 
     def after_pickup(self, j):
         """A badge marked "retry" is offered ONE more time, under a new print id
@@ -302,10 +436,12 @@ PAGE = """<!doctype html><meta charset="utf-8"><title>Stand-in hub</title>
 <button onclick="mode('manage')">Not in partner mode (409)</button></p>
 <p><button onclick="sample()">Send a sample print</button> <span id="out"></span></p>
 <p id="stat"></p>
+<p id="report"></p>
 <script>
 async function show(){const m=await (await fetch('/v1/bench/print-mode')).json();
 document.getElementById('mode').textContent=m.mode;
-document.getElementById('stat').textContent=(m.lastPickupAt?'Last collected '+m.lastPickupAt:'Nothing collected yet')+'. Waiting: '+m.waitingForPickup;}
+document.getElementById('stat').textContent=(m.lastPickupAt?'Last collected '+m.lastPickupAt:'Nothing collected yet')+'. Waiting: '+m.waitingForPickup;
+const r=m.lastReport;document.getElementById('report').textContent=r?('Last report: '+r.outcome+' for '+r.id+' at '+r.at+(r.reason?' - '+r.reason:'')):'No partner report yet (reports are optional).';}
 async function mode(m){await fetch('/v1/bench/print-mode',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:m})});show();}
 async function sample(){const o=document.getElementById('out');o.textContent='Waiting up to 10 s...';
 const r=await (await fetch('/v1/bench/sample-print',{method:'POST'})).json();
@@ -346,7 +482,68 @@ def make_handler(hub):
 
         def mode_view(self):
             return {"mode": "manage" if hub.mode == "manage" else "broadcast", "broadcastPort": DOORBELL_PORT,
-                    "lastPickupAt": hub.last_pickup, "waitingForPickup": len(hub.waiting())}
+                    "lastPickupAt": hub.last_pickup, "waitingForPickup": len(hub.waiting()),
+                    "lastReport": hub.last_report}
+
+        def report_totals(self):
+            """What partners have told this hub, the way a real hub's /v1/status says it."""
+            printed = [r for r in hub.reports if r["outcome"] == "printed"]
+            failed = [r for r in hub.reports if r["outcome"] == "failed"]
+            last = failed[-1] if failed else None
+            return {
+                "partnerPrinted": len(printed),
+                "partnerFailed": len(failed),
+                "lastPrintedAt": printed[-1]["at"] if printed else None,
+                "lastFailureAt": last["at"] if last else None,
+                "partnerFailure": None if last is None else {
+                    "at": last["at"], "desk": last["desk"], "reason": last["reason"],
+                    "message": (f"{last['desk']}: the print partner reported a failure"
+                                + (f" — {last['reason']}" if last["reason"] else ".")),
+                },
+            }
+
+        def report_body(self):
+            """The report's body, when there is one. No body, an empty body or JSON we
+            cannot read is a report with nothing said — never an error: the outcome is
+            in the path."""
+            try:
+                raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                body = json.loads(raw or b"{}")
+                return body if isinstance(body, dict) else {}
+            except (ValueError, OSError):
+                return {}
+
+        def do_report(self, path):
+            """POST /v1/prints/<id>/printed and /failed."""
+            if not self.partner_ready():
+                return
+            head, outcome = path.rsplit("/", 1)
+            try:
+                print_id = str(uuid.UUID(head.rsplit("/", 1)[-1]))
+            except ValueError:
+                return self.send(404, b"", "text/plain")
+            body = self.report_body()
+            collector = (self.headers.get(COLLECTOR_HEADER) or "").strip()
+            if not collector:
+                collector = str(body.get("collector") or "").strip()[:COLLECTOR_MAX]
+            state, j = hub.report(print_id, outcome, collector or None, body.get("reason"))
+            log(f"report {outcome} for {print_id} {state} "
+                f"(from {collector or 'a client with no id'}"
+                + (f", reason: {hub.clean_reason(body.get('reason'))}"
+                   if outcome == "failed" and body.get("reason") else "") + ")")
+            if state == "unknown":
+                return self.problem(404, "No such print", NO_REPORT_TARGET)
+            if state == "notyours":
+                return self.problem(409, "Not your badge", NOT_YOURS)
+            got = (j or {}).get("report")
+            self.send(200, {
+                "id": print_id,
+                "outcome": outcome,
+                "recorded": True,
+                "applied": state == "recorded",
+                "state": state,
+                "reportedOutcome": got["outcome"] if got else None,
+            })
 
         def do_GET(self):
             path = self.path.split("?", 1)[0]
@@ -357,7 +554,8 @@ def make_handler(hub):
             elif path == "/v1/status":
                 v = self.mode_view()
                 self.send(200, {"hubName": HUB_NAME, "printMode": v["mode"],
-                                "lastPickupAt": v["lastPickupAt"], "waitingForPickup": v["waitingForPickup"]})
+                                "lastPickupAt": v["lastPickupAt"], "waitingForPickup": v["waitingForPickup"],
+                                **self.report_totals()})
             elif path == "/v1/prints":
                 if self.partner_ready():
                     host = self.headers.get("Host") or f"{hub.host}:{hub.port}"
@@ -400,7 +598,10 @@ def make_handler(hub):
             self.send(200, self.mode_view())
 
         def do_POST(self):
-            if self.path != "/v1/bench/sample-print":
+            path = self.path.split("?", 1)[0]
+            if path.startswith("/v1/prints/") and path.rsplit("/", 1)[-1] in ("printed", "failed"):
+                return self.do_report(path)
+            if path != "/v1/bench/sample-print":
                 return self.send(404, b"", "text/plain")
             if hub.mode != "broadcast":
                 return self.problem(409, "Not in print partner mode",
@@ -465,7 +666,14 @@ def main():
                     help="broadcast: normal. manage: every partner route answers 409. locked: 503.")
     ap.add_argument("--host", default="127.0.0.1", help="address to put in pickup URLs (default 127.0.0.1)")
     ap.add_argument("--every", type=float, default=0, help="send a sample badge every N seconds")
+    ap.add_argument("--no-pdf", action="store_true",
+                    help="leave the pdf off every badge, as an event that hasn't asked the hub "
+                         "for one does. Without it every badge carries a one-page PDF at the "
+                         "label's size (102 x 64 mm = 289.13 x 181.42 pt).")
     a = ap.parse_args()
+
+    global SEND_PDF
+    SEND_PDF = not a.no_pdf
 
     def stop(*_):
         raise KeyboardInterrupt
@@ -489,6 +697,8 @@ def main():
         f"list only (never announced): {quiet['id']}; cancelled (410): {late['id']}")
     log("two of them try to make you print twice: Robin Retry (offered again under a new id, "
         "same jobKey) and Ash Repeat (stays on the list after collection)")
+    log("badges carry a pdf (102 x 64 mm)" if SEND_PDF else
+        "--no-pdf: badges carry no pdf, as an event that hasn't asked for one")
 
     def announce():
         time.sleep(0.5)

@@ -43,7 +43,7 @@ printing in `print_badge()`.
 `git pull` for the latest, or watch the
 [releases](https://github.com/forumeurope/fe-print-partner-kit/releases) - each one is a spec version,
 and each carries the whole kit as a zip. This copy is
-**spec version 1**.
+**spec version 2**.
 
 ## Questions
 
@@ -58,66 +58,84 @@ The rest of this page is the kit's own `README.txt`, the short way in.
 FE PRINT PARTNER KIT
 ====================
 
-This kit is for a print supplier. The system of that supplier prints the name
-badges at an FE event.
+This kit is for a print supplier printing the name badges at an FE event.
 
-The model in one sentence:
-  We announce what we must print. You collect it and you print it.
+At the event our print hub broadcasts a small UDP message on port 8632 each
+time a check-in desk asks for a badge. Your computer fetches that badge over
+HTTP from the hub on port 8631 and gets the delegate's data as JSON, together
+with a rendered PNG of the badge and, if the event has asked for it, a PDF.
+There is no login and no key: the event network is the boundary. You print the
+badge on your own kit.
 
-At the event, our print hub sends a small UDP message on port 8632 each time
-that a check-in desk asks for a badge. This message is the announcement. Your
-computer collects the badge over HTTP from the hub on port 8631. There is no
-login and no key. You print the badge in the way that you want.
+WHAT THIS IS FOR
+----------------
+Most partners use this interface to print THEIR OWN badge design and take only
+our data to fill it in: the delegate's name, their name in their own script
+where we have one, their organisation, job title and delegate type, the exact
+QR text and the badge serial, plus the event name. Your layout, stock, fonts,
+colours, drivers and colour management stay yours; none of that is ours to
+specify.
+
+The rendered PNG we send is there if you would rather not lay anything out —
+it is exactly what our own thermal printers produce — and the optional PDF is
+the same badge as vector at the stock's exact millimetre size. Use whichever
+suits you.
+
+Two things make the badge work on the day, whatever you print on:
+  - the QR text encoded exactly as sent, and scannable - our door scanners
+    read it, and a code that does not scan holds a delegate up;
+  - the name legible at arm's length, in the script we sent it in.
+
+There are also two routes for telling us how a badge went, "printed" and
+"failed". They are available, not required - see TELLING US HOW IT WENT.
 
   WHAT WE GIVE YOU                 | WHAT YOU BUILD
   ---------------------------------|-----------------------------------
   The event network and the hub    | Your own printing, from the badge
-  The announcement on UDP 8632     |   picture or the badge data
+  The UDP message on 8632          |   data or from our picture
   The badge over HTTP on 8631:     | Your queue, retries and operators
-    the words, the design, the QR  | The printer, the stock and the
-    text and a finished picture    |   settings
-  This example client and the spec | Everything else at your end
+    the data, the QR text, our     | The printer, the stock and the
+    design, a PNG, sometimes a PDF |   settings
 
-Everything after the collection of a badge is yours. We send nothing else, and
-we want nothing back.
-
-The full interface is in print-partner-spec.md: the announcement, the pickup,
-the waiting list, every field and every error code. That file is the
-reference. This file only starts you.
+print-partner-spec.md is the full interface: the datagram, the pickup, the
+waiting list, every field, every status code and the reports. That file is the
+reference; this one only gets you started.
 
 
-WORDS WE USE
-------------
-  announcement   The UDP message on port 8632 that tells you that a badge is
-                 ready. Section 1 of the spec calls this the announcement.
-  badge          The thing that you print, and also the data for it.
-  job id         The id of the hub for one offer of a badge ("id").
-  job key        The id of the desk for the badge ("jobKey").
-  collector      Your system, which collects badges.
-  collect        To get a badge from the hub over HTTP.
-  waiting list   The list of badges that nobody collected.
-  cancelled      The state of a badge that the hub stopped. Never print it.
+TERMS
+-----
+  datagram       The UDP message on port 8632 announcing that a badge is
+                 ready. Older documents called it the announcement or the
+                 doorbell.
+  badge          One delegate's badge: the JSON, and the thing you print.
+  job id         The hub's id for one offer of a badge ("id").
+  job key        The desk's id for the badge itself ("jobKey"), stable
+                 across a retry.
+  collector      Your software, identified by X-Print-Collector.
+  collect        GET a badge. The first successful GET takes it.
+  waiting list   The badges nobody has collected yet.
+  cancelled      A badge the hub took back. It answers 410. Never print it.
 
 
 REQUIREMENTS
 ------------
-Python 3.10 or a later version. You install nothing else.
+Python 3.10 or later, and nothing else.
 
   macOS    Install from https://www.python.org/downloads/ ,
            or with Homebrew: brew install python
   Windows  Install from https://www.python.org/downloads/ and tick
-           "Add python.exe to PATH" on the first screen.
-           The "py" launcher that comes with it also works.
+           "Add python.exe to PATH" on the first screen. The bundled "py"
+           launcher works too.
 
-Check the version. Open Terminal (macOS) or Command Prompt (Windows). Then run
+Check it: open Terminal (macOS) or Command Prompt (Windows) and run
   python3 --version      (macOS)
   py -3 --version        (Windows)
 
 
-QUICK START A - one computer, and no event
-------------------------------------------
-The kit contains a stand-in hub. It serves some badges with false data.
-Therefore you can develop without our hardware.
+QUICK START A - one computer, no event
+--------------------------------------
+The kit contains a stand-in hub that serves invented badges, so you can build
+against the whole path without our hardware.
 
   macOS
     1. Double-click start-fake-hub-mac.command. Leave the window open.
@@ -129,35 +147,49 @@ Therefore you can develop without our hardware.
     2. Double-click start-client-windows.bat. Press Enter to accept
        127.0.0.1 as the hub address.
 
-In a few seconds the client saves each badge into the "badges" folder next to
-these files. It saves <id>.png (the finished picture) and <id>.json (all of
-the badge data). The client finds one badge only through its regular check of
-the waiting list, therefore that badge can take about 10 seconds. The hub
-cancels one badge: the client skips that badge, and that is correct. Two more
-badges try to make the client print the same badge twice. The client does not
-print it twice, and your system must not print it twice. Read "NEVER PRINT A
-BADGE TWICE" below.
+The stand-in hub sends a PDF on every badge, so you can try that route too:
+print a saved <id>.pdf on the stock you mean to use. Start it with --no-pdf and
+it behaves like an event that has the setting switched off, which is worth
+checking your code takes in its stride.
 
-If macOS says that it cannot open the .command file, right-click the file and
-choose Open. Or run the file from Terminal:  bash start-client-mac.command
+Within a few seconds the client saves each badge into the "badges" folder
+beside these files: <id>.png (the rendered picture), <id>.json (everything,
+including the data you would fill your own design with) and <id>.pdf when the
+badge carries one. One badge arrives only through the client's regular poll of
+the waiting list, so it can take about 10 seconds. One badge is cancelled and
+the client skips it, which is correct. Two more are deliberate attempts to make
+you print the same badge twice; the client does not, and neither must your
+system. Read NEVER PRINT A BADGE TWICE below.
 
-Stop either window with Ctrl-C, or close the window.
+If macOS refuses to open the .command file, right-click it and choose Open, or
+run it from Terminal:  bash start-client-mac.command
+
+Stop either window with Ctrl-C, or close it.
 
 
-QUICK START B - at the event, with the real hub
------------------------------------------------
-  1. Put a network cable into our router. FE gives you the port.
-     Use a cable. Do not use Wi-Fi: Wi-Fi drops broadcasts, and Wi-Fi stops
-     in a crowd. We give you the Wi-Fi details only as a fallback.
-  2. FE gives you the address of the hub on the day (for example
-     192.168.8.20).
-  3. Start the client. Type that address when the client asks:
+QUICK START B - at the event, against the real hub
+--------------------------------------------------
+  1. Put a network cable into our router; we give you the port. Use the
+     cable. Wi-Fi drops broadcasts and degrades in a crowd, so we give you
+     Wi-Fi details only as a fallback.
+  2. We give you the hub's address on the day (for example 192.168.8.20).
+  3. Start the client and give it that address:
        macOS    double-click start-client-mac.command
        Windows  double-click start-client-windows.bat
-     Or give the address directly:
+     or directly:
        bash start-client-mac.command 192.168.8.20
        start-client-windows.bat 192.168.8.20
-  4. Ask FE to send a test badge. A test badge has "test": true.
+  4. Ask us to send a test badge. A test badge has "test": true.
+
+There is no joint test before the event: setup day at the venue is the first
+time your software meets our hub. Test against the stand-in hub until then -
+it sends the same datagrams and the same badge payloads on the same ports, so
+a system that works against it works against ours.
+
+Have ready on setup day: the machine that will run all event, with your
+software installed and already working against the stand-in hub; your printers,
+stock and consumables; a network cable for our router; and somebody who can
+change your settings on the spot.
 
 Do not run the stand-in hub at the event.
 
@@ -165,83 +197,108 @@ Do not run the stand-in hub at the event.
 WHAT EACH FILE IS
 -----------------
   README.txt                    This file.
-  print-partner-spec.md         The full interface: the announcement, the
-                                pickup, the waiting list, the fields and the
-                                error codes.
-  print-partner-client.py       A working example client. Put your own
-                                printing in the function print_badge().
-                                Everything else can stay as it is.
-  fake-partner-hub.py           The stand-in hub, with badges that hold false
-                                data. Use it only to develop.
+  print-partner-spec.md         The full interface: the datagram, the pickup,
+                                the waiting list, the fields, the reports and
+                                the status codes.
+  print-partner-client.py       A working reference client. Your printing goes
+                                in the function print_badge(); everything else
+                                can stay as it is.
+  fake-partner-hub.py           The stand-in hub, serving invented badges. For
+                                development only.
   start-client-mac.command      Starts the client (macOS).
   start-fake-hub-mac.command    Starts the stand-in hub (macOS).
   start-client-windows.bat      Starts the client (Windows).
   start-fake-hub-windows.bat    Starts the stand-in hub (Windows).
-  samples/                      Example badge data, if the kit contains it.
+  samples/                      One real datagram, one real badge, its picture
+                                and the same badge as a PDF (pickup.pdf) -
+                                print that on your stock before you write
+                                anything.
+  badges.printed.json           The client's record of what it has printed.
+                                Do not delete it while the event is running.
 
 The launchers take optional arguments:
   start-client-*    [hub address] [hub port]    (defaults 127.0.0.1, 8631)
   start-fake-hub-*  [port]                      (default 8631)
   Windows only: add /nopause to close the window without a key press.
 
-  badges.printed.json           The record of the client of what it printed.
-                                Do not delete this file while the event runs.
-
 To run the client directly:
   python3 print-partner-client.py --hub <address> [--port 8631] [--out badges]
                                  [--record FILE] [--forget]
 
 
+TELLING US HOW IT WENT
+----------------------
+If you want to, you can tell the hub what happened to a badge:
+
+  POST http://<hub>:8631/v1/prints/<id>/printed
+  POST http://<hub>:8631/v1/prints/<id>/failed   {"reason": "out of ribbon"}
+
+with your X-Print-Collector header on the request. The reference client does
+this already: "printed" when its print hook returns, "failed" with the error
+text when it raises.
+
+What we do with them: a "failed" report reaches the desk and is shown there
+like any other print failure, with your reason in the sentence ("Desk 1: the
+print partner reported a failure - out of ribbon"), and the operator is offered
+a reprint, which reaches you as a new badge with a new job key. Without it, a
+jam and a successful print look identical from the desk: the iPad says printed,
+the steward turns round, and there is nothing to hand over. A "printed" report
+closes the badge quietly.
+
+Nothing depends on them. A client that never sends them behaves exactly the
+same, and no badge waits for one. Report once per badge; a repeat is accepted
+and changes nothing. If a report call fails, note it and carry on - there is
+nothing to retry in a loop, and it should never hold up the next badge.
+Section 8 of the spec has the rules and the status codes.
+
+
 NEVER PRINT A BADGE TWICE
 -------------------------
-Never print a badge twice. A delegate with two badges is the complaint that we
-hear at the desk. The hub announces each badge three times, on every network,
-and the waiting list repeats each badge every 5 seconds. Therefore you hear
-about one badge five or six times in the ordinary case.
+A delegate holding two badges is the complaint we hear at the desk. The hub
+announces each badge three times on every network, and the waiting list repeats
+it every 5 seconds, so you will hear about one badge five or six times on an
+ordinary morning. That is normal, not a fault.
 
-The hub gives each badge a job id ("id") and the job key of the desk
-("jobKey"). The hub gives each badge to ONE collector, and it answers 409 to a
-second collector. The example client keeps every job id and every job key that
-it printed in badges.printed.json. It checks that file before it collects, and
-again before it prints. It sends its own X-Print-Collector on every request.
-Therefore a restart, a repeat announcement or a second client never prints a
-badge again. Copy that behaviour.
+Each badge carries a job id ("id") and the desk's job key ("jobKey"). The hub
+serves a badge to ONE collector and answers 409 to a second. The reference
+client records every job id and job key it has printed in badges.printed.json,
+checks that file before it collects and again before it prints, and sends its
+own X-Print-Collector on every request, so a restart, a repeat datagram or a
+second client never reprints a badge. Copy that behaviour.
 
-Run ONE collector. A spare machine, or an old process that nobody stopped, is
-the usual cause of two prints of everything.
+Run ONE collector. A spare machine, or yesterday's process nobody stopped, is
+the usual explanation for everything printing twice.
 
-A reprint, or a badge for a new day, comes with a NEW job key. It IS a new
-badge, and you must print it.
+A reprint, or a badge for a new day, arrives with a NEW job key. It is a new
+badge and you must print it.
 
---forget empties the record, therefore you can print a test badge again. Never
-use --forget at an event.
+--forget empties the record so you can reprint a test badge. Never use it at an
+event.
 
-Section 8a of print-partner-spec.md gives all of the detail.
+Section 10 of print-partner-spec.md has the detail.
 
 
 FIREWALL
 --------
-The client must receive UDP on port 8632. It must also connect out to TCP port
-8631. Your firewall must allow both.
+The client must receive UDP on port 8632 and connect out to TCP 8631. Your
+firewall has to allow both.
 
-  macOS    If macOS asks "Do you want the application Python to accept
-           incoming network connections?", choose Allow. If you missed the
-           question: System Settings > Network > Firewall > Options, and set
-           Python to "Allow incoming connections".
-  Windows  When Windows Defender Firewall asks about Python, tick
-           "Private networks" and click Allow. If you missed the question:
-           Control Panel > Windows Defender Firewall > Allow an app through
-           Windows Defender Firewall, and tick Private for Python.
-           Also set the event network as a Private network.
+  macOS    If macOS asks whether Python may accept incoming network
+           connections, choose Allow. If you missed it: System Settings >
+           Network > Firewall > Options, and set Python to "Allow incoming
+           connections".
+  Windows  When Defender asks about Python, tick "Private networks" and click
+           Allow. If you missed it: Control Panel > Windows Defender Firewall >
+           Allow an app through Windows Defender Firewall, and tick Private for
+           Python. Set the event network as Private as well.
 
 
 RULES THAT MATTER
 -----------------
-  - A badge that answers 410 is cancelled. Do not print it. The desk stopped
-    the wait, and the desk can already print another badge.
-  - The hub can announce the same badge more than one time. Print it one time.
-  - We do not need a "printed" reply or a "failed" reply. Send nothing back to
-    the hub.
+  - A badge that answers 410 is cancelled. Do not print it: the desk stopped
+    waiting and may already have printed a replacement.
+  - The hub can announce the same badge more than once. Print it once.
+  - Print the QR text exactly as sent.
   - A badge holds personal data. Delete the saved files after the event.
 
 
@@ -249,24 +306,22 @@ TROUBLESHOOTING
 ---------------
 No badges arrive:
   - Is your cable in our router, and is the link light on?
-  - Does the firewall block Python? Read FIREWALL above.
-  - Start the client with the address of the hub (--hub <address>, or type
-    the address when the client asks). The client then also checks the
-    waiting list of the hub every 5 seconds. That works also when the network
-    blocks the announcement.
-  - "cannot reach the hub": check the address with FE. Also check that you can
-    open http://<address>:8631/v1/prints in a browser.
-  - "hub not ready (HTTP 409)": the hub is not yet in print partner mode. Ask
-    FE to switch the mode on.
-  - "hub not ready (HTTP 503)": nobody started the desk. Wait, or ask FE.
+  - Is the firewall blocking Python? See FIREWALL above.
+  - Start the client with the hub's address (--hub <address>, or type it when
+    the client asks). It then also polls the hub's waiting list every 5
+    seconds, which works even when the network swallows the datagrams.
+  - "cannot reach the hub": check the address with us, and check you can open
+    http://<address>:8631/v1/prints in a browser.
+  - "hub not ready (HTTP 409)": the hub is not in print partner mode yet. Ask
+    us to switch it.
+  - "hub not ready (HTTP 503)": nobody has started the desk. Wait, or ask us.
 
 "Address already in use" with the stand-in hub:
-  A second copy already runs. Close that copy, or start with another port:
+  A second copy is already running. Close it, or start on another port:
   start-fake-hub-mac.command 8641 and then start-client-mac.command
   127.0.0.1 8641 (the same on Windows).
 
-Only one program on a computer can listen for the announcement at one time. If
-a different listener runs, the client still finds badges through the waiting
-list.
-</content>
+Only one program per machine can listen for the datagrams at a time. If
+something else holds the port, the client still finds badges through the
+waiting list.
 ```

@@ -3,7 +3,13 @@
 
 Listens for the hub's "a badge is ready" datagram on UDP port 8632, also checks
 the hub's waiting list every 5 seconds, collects each badge and saves it as
-<id>.png and <id>.json in a folder. Put your own printing in print_badge().
+<id>.png, <id>.json and — when the badge carries one — <id>.pdf in a folder.
+Put your own printing in print_badge(); it shows the three ways to print.
+
+After printing it tells the hub what happened: POST /v1/prints/<id>/printed, or
+/failed with a reason. That is optional by protocol, and a report that does not
+arrive is dropped rather than retried, but it is the only way the desk can tell
+a jam from a badge already in a delegate's hand.
 
 Python 3.10 or newer, standard library only. Windows, macOS and Linux.
 
@@ -80,17 +86,68 @@ def say(msg):
     print(f"{time.strftime('%H:%M:%S')} {msg}", flush=True)
 
 
-def print_badge(job, png_path):
+def print_badge(job, png_path, pdf_path=None):
     """YOUR PRINTING GOES HERE.
 
-    job is the full badge (a dict): badge fields, event, design, size and the
-    finished picture. png_path is the saved picture. Print it however you like.
-    Nothing is sent back to the hub: we don't need to know if it printed.
+    job is the full badge (a dict): the badge fields, the event, the design, the
+    size, a finished picture, and a finished PDF when the event asked for one.
+    png_path is the saved picture; pdf_path is the saved PDF, or None.
+
+    Return normally when the badge came out of the printer, and raise when it did
+    not. The caller reports that back to the hub (printed / failed) so the desk
+    can tell a jam from a badge already in a delegate's hand. Reporting is
+    optional by protocol: if you take this out, everything else still works.
+
+    THREE WAYS TO PRINT, most likely first.
+
+    (a) YOUR OWN DESIGN from our data. What most partners do: you have a badge
+        design and a printer that knows it, and all you want from us are the
+        words. Everything you need is in job["badge"] — name, nameLocal (the
+        local-script name, often Arabic), organisation, jobTitle, type, qr,
+        serial — plus job["event"]["name"]. Nothing else here is needed.
+
+            b, event = job["badge"], job.get("event") or {}
+            your_printer.print_label(
+                name=b["name"], name_local=b.get("nameLocal"),
+                organisation=b.get("organisation"), job_title=b.get("jobTitle"),
+                badge_type=b.get("type"), qr=b["qr"], event=event.get("name"))
+
+    (b) OUR PICTURE, ready made. job["image"] is the whole badge as a PNG at
+        job["image"]["dpi"] dots per inch (203 on a label printer). Send it at
+        that dpi with NO scaling and no "fit to page": scaling is what makes a
+        QR code unreadable and a name soft.
+
+            subprocess.run(["lp", "-d", "YourPrinter", "-o", "media=Custom.102x64mm",
+                            "-o", "scaling=100", str(png_path)], check=True)
+
+    (c) OUR PDF, ready made, when it is there. job.get("pdf") is the same badge
+        as a one-page PDF at exactly widthMm x heightMm. Print it at its own page
+        size — again no scaling, no margins. It is OPTIONAL: absent unless the
+        event turned it on, so always check before using it.
+
+            if pdf_path:
+                subprocess.run(["lp", "-d", "YourPrinter", "-o", "media=Custom.102x64mm",
+                                "-o", "fit-to-page=false", str(pdf_path)], check=True)
+
+        Most partners will send the saved PDF through their own print stack instead.
+        If you want to hand it straight to a printer, these two lines are a starting
+        point — we have not tested either on your kit, so treat them as examples:
+
+            macOS/Linux: subprocess.run(["lpr", "-P", "YourPrinter",
+                                         "-o", "media=Custom.102x64mm", str(pdf_path)], check=True)
+            Windows:     subprocess.run(["SumatraPDF.exe", "-print-to", "YourPrinter",
+                                         "-print-settings", "noscale", str(pdf_path)], check=True)
+                         (or PowerShell: Start-Process -FilePath <pdf> -Verb Print, which
+                          uses whatever the machine's default PDF reader does)
+
+    What this example client actually does is neither: it saves the files and
+    says what it would have printed.
     """
     b = job["badge"]
     size = job["size"]
     test = " [TEST]" if job.get("test") else ""
-    say(f"  -> would print {b.get('name')!r} ({size['widthMm']} x {size['heightMm']} mm){test}")
+    extra = f", pdf {pdf_path.name}" if pdf_path else ""
+    say(f"  -> would print {b.get('name')!r} ({size['widthMm']} x {size['heightMm']} mm){test}{extra}")
 
 
 def problem_detail(err):
@@ -99,6 +156,12 @@ def problem_detail(err):
         return json.loads(err.read().decode("utf-8")).get("detail") or ""
     except (ValueError, OSError, AttributeError):
         return ""
+
+
+def one_line(e):
+    """An exception as one short line, for the hub to show the desk."""
+    text = " ".join(str(e).split()) or e.__class__.__name__
+    return text[:200]
 
 
 def write_atomic(path, data):
@@ -195,6 +258,36 @@ class Client:
         with urllib.request.urlopen(request, timeout=5) as r:
             return json.load(r)
 
+    def report(self, print_id, outcome, reason=None):
+        """Tell the hub what happened to a badge we collected: printed, or failed.
+
+        OPTIONAL by protocol — take it out and everything else works exactly as
+        before — but without it the desk cannot tell a jam from a badge already
+        in a delegate's hand, so send it.
+
+        It must never be able to break printing. A report that does not arrive is
+        said once and dropped: never retried in a loop, never a reason to collect
+        or print the badge again. The badge is already printed; the hub only
+        misses the news. Only the client that collected the badge may report on
+        it, hence the same X-Print-Collector id we collected with.
+        """
+        url = f"{self.base}/v1/prints/{print_id}/{outcome}"
+        body = json.dumps({"reason": reason} if reason else {}).encode("utf-8")
+        request = urllib.request.Request(
+            url, data=body, method="POST",
+            headers={COLLECTOR_HEADER: self.record.collector, "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(request, timeout=5) as r:
+                answer = json.load(r)
+            state = answer.get("state") if isinstance(answer, dict) else None
+            say(f"  reported {outcome} for {print_id}: {state or 'accepted'}")
+        except urllib.error.HTTPError as e:
+            # 404 (the hub no longer holds it), 409 (somebody else collected it),
+            # 410 or anything else: nothing to do about it here.
+            say(f"  could not report {outcome} for {print_id}: HTTP {e.code} {problem_detail(e)}")
+        except (OSError, ValueError) as e:
+            say(f"  could not report {outcome} for {print_id}: {e}")
+
     def release(self, print_id):
         with self.lock:
             self.inflight.discard(print_id)
@@ -247,16 +340,26 @@ class Client:
         # print it again, which is a new job key and a new badge.
         self.record.done(print_id, key, "printed")
 
-        # PNG first, JSON last: a folder watcher can treat the .json as "complete".
+        # PNG (and the PDF when there is one) first, JSON last: a folder watcher
+        # can treat the .json as "complete".
         png_path = self.out / f"{print_id}.png"
         write_atomic(png_path, base64.b64decode(job["image"]["base64"]))
+        pdf_path = None
+        pdf = job.get("pdf")
+        # Optional: only there when the event asked the hub for a PDF as well.
+        if isinstance(pdf, dict) and pdf.get("base64"):
+            pdf_path = self.out / f"{print_id}.pdf"
+            write_atomic(pdf_path, base64.b64decode(pdf["base64"]))
         write_atomic(self.out / f"{print_id}.json",
                      json.dumps(job, ensure_ascii=False, indent=2).encode("utf-8"))
         say(f"collected {print_id} from {job.get('desk')} -> {png_path}")
         try:
-            print_badge(job, png_path)   # called at most once per print id, ever
+            print_badge(job, png_path, pdf_path)   # called at most once per print id, ever
         except Exception as e:  # your printing failing must not stop collection
             say(f"  print_badge failed: {e!r}")
+            self.report(print_id, "failed", one_line(e))
+        else:
+            self.report(print_id, "printed")
 
     def open_doorbell(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
