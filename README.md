@@ -43,7 +43,7 @@ printing in `print_badge()`.
 `git pull` for the latest, or watch the
 [releases](https://github.com/forumeurope/fe-print-partner-kit/releases) - each one is a spec version,
 and each carries the whole kit as a zip. This copy is
-**spec version 2**.
+**spec version 1**.
 
 ## Questions
 

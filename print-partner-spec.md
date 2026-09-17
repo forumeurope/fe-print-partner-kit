@@ -1,6 +1,6 @@
 # Printing badges at an FE event: the print partner interface
 
-Spec version 2 (17 September 2026). Changes are listed at the end.
+Spec version 1 (17 September 2026). Changes are listed at the end.
 
 When a delegate checks in at an FE event, one of our desk iPads asks our print
 hub for that person's badge. In print partner mode the hub does not print it.
@@ -706,18 +706,8 @@ collection, and the number of badges waiting.
 
 ## Changes
 
-- **2** (17 Sep 2026): **Two new routes for telling us how a badge went** —
-  `POST /v1/prints/{id}/printed` and `POST /v1/prints/{id}/failed` (section 8).
-  They are optional and nothing depends on them: a `failed` report puts your
-  reason in front of the desk staff and offers them a reprint, a `printed`
-  report closes the badge quietly, and a client that calls neither behaves
-  exactly as before. **An optional `pdf`** on the badge payload, alongside the
-  unchanged `image`, for partners who would rather print vector than a bitmap;
-  it is a per-event setting and off unless you ask for it. This version also
-  rewrites the document in ordinary technical English and states plainly what
-  the interface is for: printing our delegates' badges with **your** design and
-  your kit, taking our data and, if you want it, our rendering. No field was
-  removed or renamed.
-- **1** (17 Sep 2026): the first version. It gives the datagram, the pickup,
-  the waiting list, every field and every status code, the rule that one badge
-  is printed one time, and the test with the stand-in hub.
+- **1** (17 Sep 2026): the first version. It covers the datagram, the pickup,
+  the waiting list, every field and status code, the optional `pdf` alongside
+  `image`, the two optional routes for telling us how a badge went
+  (`printed` and `failed`), the rule that one badge is printed once, and how to
+  test against the stand-in hub before setup day.
