@@ -1,0 +1,2 @@
+# Windows launchers need CRLF.
+*.bat text eol=crlf
