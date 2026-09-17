@@ -3,12 +3,54 @@ FE PRINT PARTNER KIT
 
 This kit is for a print supplier printing the name badges at an FE event.
 
-How it works. Each time a check-in desk asks for a badge, our print hub
-broadcasts a small UDP message on port 8632. Your computer then fetches that
-badge from the hub over HTTP on port 8631. You get the delegate's data as JSON,
-a rendered PNG of the badge, and a PDF if the event has asked for one. You
-print it on your own kit. There is no login and no key: being on the event
-network is what gets you in.
+WHY IT MATTERS
+--------------
+Our registration system is built to keep every step simple for the delegate.
+They register once, and everything after that comes from that one record.
+Arriving at the venue is where it becomes physical: a delegate gives their name
+at a desk and should be wearing a correct badge a few seconds later, with a
+queue behind them.
+
+That badge is the part you are taking on, so two things shape everything here:
+
+  - it has to be quick. The desk waits 10 seconds for you to collect a badge,
+    which is why we ask for a cable rather than Wi-Fi.
+  - it has to be right, once. The badge gets the delegate through the door and
+    past our scanners all week. A code that does not scan stops them at a
+    barrier, and a second badge for the same person is refused at the door
+    later. Read NEVER PRINT A BADGE TWICE below.
+
+YOUR PRINTER, YOUR CARDS, YOUR DESIGN
+-------------------------------------
+We give you the delegate data and stay out of the printing. Our own events
+mostly run thermal labels, but nothing here assumes that. If you are printing
+onto plastic cards on a retransfer or direct-to-card printer, pre-printed or
+blank, that is exactly the case this was built for - there is nothing extra to
+switch on.
+
+  - take the fields, not our picture. Everything you need is in "badge":
+    name, nameLocal, organisation, job title, delegate type, qr and serial.
+    Drop them into the card template you already have.
+  - ignore "size", "design" and "image". They describe what WE would have
+    printed on our own label stock, at our own resolution. They do not
+    constrain your card, your DPI, your ribbon or your colour management.
+  - your card size is yours. Nothing in the protocol changes with the stock.
+  - two things must carry over: the qr text encoded exactly as sent, and the
+    name legible in the script we sent it in.
+  - if your cards already carry the event artwork, print only the variable
+    data over them. badge.type is the usual field to colour-code by.
+
+Everything else here - the message, the pickup, the timing, printing a badge
+once - is the same either way.
+
+HOW IT WORKS
+------------
+Each time a check-in desk asks for a badge, our print hub broadcasts a small
+UDP message on port 8632. Your computer then fetches that badge from the hub
+over HTTP on port 8631. You get the delegate's data as JSON, a rendered PNG
+of the badge, and a PDF if the event has asked for one. You print it on your
+own kit. There is no login and no key: being on the event network is what
+gets you in.
 
 WHAT THIS IS FOR
 ----------------
@@ -18,9 +60,10 @@ their organisation, job title and delegate type, the exact QR text, the badge
 serial and the event name. Your layout, stock, fonts, colours, drivers and
 colour management stay yours. None of that is ours to specify.
 
-If you would rather not lay anything out, print the PNG we send. It is exactly
-what our own thermal printers produce. The optional PDF is the same badge as
-vector, at the stock's exact size in millimetres. Use whichever suits you.
+If you would rather not lay anything out, print the PNG we send. It is what our
+own thermal printers produce, so it is sized for our label stock - on a card
+printer, use the fields or the optional PDF, which is vector at the stock's
+exact size in millimetres.
 
 Two things make the badge work on the day, whatever you print on:
   - the QR text, encoded exactly as sent and scannable. Our door scanners
@@ -30,13 +73,16 @@ Two things make the badge work on the day, whatever you print on:
 There are also two routes for telling us how a badge went, "printed" and
 "failed". They are available, not required - see TELLING US HOW IT WENT.
 
-  WHAT WE GIVE YOU                 | WHAT YOU BUILD
-  ---------------------------------|-----------------------------------
-  The event network and the hub    | Your own printing, from the badge
-  The UDP message on 8632          |   data or from our picture
-  The badge over HTTP on 8631:     | Your queue, retries and operators
-    the data, the QR text, our     | The printer, the stock and the
-    design, a PNG, sometimes a PDF |   settings
+What we give you:
+  - the event network and the hub;
+  - the UDP message on port 8632, one per badge;
+  - the badge over HTTP on port 8631: the data, the QR text, our own design,
+    a PNG, and sometimes a PDF.
+
+What you build:
+  - your own printing, from the badge data or from our picture;
+  - your queue, your retries and your operators;
+  - the printer, the stock and the settings.
 
 print-partner-spec.md is the full interface: the datagram, the pickup, the
 waiting list, every field, every status code and the reports. That file is the
