@@ -1,6 +1,6 @@
 # FE print partner kit
 
-Everything a print supplier needs to print the name badges at an FE event:
+Everything a print supplier needs to print the name badges at the event:
 the interface, an example client, a stand-in hub to build against, and real
 samples.
 

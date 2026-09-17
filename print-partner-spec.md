@@ -1,26 +1,27 @@
-# Printing badges at an FE event: the print partner interface
+# Printing the event's badges: the print partner interface
 
 Spec version 1 (17 September 2026). Changes are listed at the end.
 
 ## Why this exists
 
-Our registration system keeps every step simple for the delegate: they register
-once, and everything after that comes from that one record. Arriving at the
-venue is where it becomes physical. A delegate gives their name at the desk and
-should be wearing a correct badge a few seconds later, with a queue behind them.
+We run the registration for this event, and it is built to keep every step
+simple for the delegate: they register once, and everything after that comes
+from that one record. Arriving at the venue is where it becomes physical. A
+delegate gives their name at the desk and should be wearing a correct badge a
+few seconds later, with a queue behind them.
 
 That badge is the part you are taking on, so two things shape this document:
 
 - **Quick.** The desk waits 10 seconds for you to collect a badge. Hence the
   broadcast the instant the desk asks, and the cable rather than Wi-Fi.
-- **Right, once.** The badge gets the delegate past our scanners all week. A
-  code that does not scan stops them at a barrier; a second badge for the same
-  person is refused at the door later. Section 10 matters more than anything
-  else here.
+- **Right, once.** The badge gets the delegate past the door scanners all week.
+  A code that does not scan stops them at a barrier; a second badge for the
+  same person is refused at the door later. Section 10 matters more than
+  anything else here.
 
 ## How it works
 
-A delegate checks in, and one of our desk iPads asks our print hub for their
+A delegate checks in, and one of the desk iPads asks our print hub for their
 badge. In print partner mode the hub renders the badge, holds it, and
 broadcasts a small UDP message on port 8632 carrying a job id and a pickup URL.
 Your software fetches that URL and gets the badge as JSON, then prints it on
@@ -28,11 +29,11 @@ your own printers and your own stock.
 
 ## 1. What this interface is for
 
-**Printing our delegates' badges with your design and your kit.** You already
+**Printing the event's badges with your design and your kit.** You already
 have the design, the printing stack and the stock. What you do not have is the
 delegate data, and that is what we send, per badge: name, name in the local
 script where we hold one, organisation, job title, delegate type, the QR
-payload our scanners read, the badge serial and the event name.
+payload the door scanners read, the badge serial and the event name.
 
 We also send a finished picture (`image`) and, if the event turns it on, a PDF
 (`pdf`). Use them if you would rather not lay anything out. They are a
@@ -97,7 +98,7 @@ treats it as handed over from that moment.
 
 ## 3. Who does what
 
-**We provide** the port on our event router and a cable to it; the hub and its
+**We provide** a port on the event network and a cable to it; the hub and its
 address on the day; one datagram per badge a desk asks for; the badge data
 (name, local-script name, organisation, job title, delegate type, QR payload,
 serial, event); a rendered PNG, and a PDF if the event turns it on; and the
@@ -110,7 +111,7 @@ test against the stand-in hub before the event.
 
 ## 4. The network
 
-- **Use an Ethernet cable** into our event router. Wi-Fi drops broadcasts and
+- **Use an Ethernet cable** into the event router. Wi-Fi drops broadcasts and
   degrades in a crowd; we give you Wi-Fi credentials as a fallback, not as the
   plan.
 - **Everything is local.** Nothing goes over the internet, and UDP broadcasts

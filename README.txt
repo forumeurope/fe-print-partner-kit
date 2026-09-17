@@ -1,12 +1,13 @@
 FE PRINT PARTNER KIT
 ====================
 
-This kit is for a print supplier printing the name badges at an FE event.
+This kit is for a print supplier printing the name badges at the event.
 
 WHY IT MATTERS
 --------------
-Our registration system is built to keep every step simple for the delegate.
-They register once, and everything after that comes from that one record.
+We run the registration for this event, and it is built to keep every step
+simple for the delegate. They register once, and everything after that comes
+from that one record.
 Arriving at the venue is where it becomes physical: a delegate gives their name
 at a desk and should be wearing a correct badge a few seconds later, with a
 queue behind them.
