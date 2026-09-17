@@ -3,31 +3,29 @@ FE PRINT PARTNER KIT
 
 This kit is for a print supplier printing the name badges at an FE event.
 
-At the event our print hub broadcasts a small UDP message on port 8632 each
-time a check-in desk asks for a badge. Your computer fetches that badge over
-HTTP from the hub on port 8631 and gets the delegate's data as JSON, together
-with a rendered PNG of the badge and, if the event has asked for it, a PDF.
-There is no login and no key: the event network is the boundary. You print the
-badge on your own kit.
+How it works. Each time a check-in desk asks for a badge, our print hub
+broadcasts a small UDP message on port 8632. Your computer then fetches that
+badge from the hub over HTTP on port 8631. You get the delegate's data as JSON,
+a rendered PNG of the badge, and a PDF if the event has asked for one. You
+print it on your own kit. There is no login and no key: being on the event
+network is what gets you in.
 
 WHAT THIS IS FOR
 ----------------
-Most partners use this interface to print THEIR OWN badge design and take only
-our data to fill it in: the delegate's name, their name in their own script
-where we have one, their organisation, job title and delegate type, the exact
-QR text and the badge serial, plus the event name. Your layout, stock, fonts,
-colours, drivers and colour management stay yours; none of that is ours to
-specify.
+Most partners print THEIR OWN badge design and take only our data to fill it
+in: the delegate's name, their name in their own script where we have one,
+their organisation, job title and delegate type, the exact QR text, the badge
+serial and the event name. Your layout, stock, fonts, colours, drivers and
+colour management stay yours. None of that is ours to specify.
 
-The rendered PNG we send is there if you would rather not lay anything out —
-it is exactly what our own thermal printers produce — and the optional PDF is
-the same badge as vector at the stock's exact millimetre size. Use whichever
-suits you.
+If you would rather not lay anything out, print the PNG we send. It is exactly
+what our own thermal printers produce. The optional PDF is the same badge as
+vector, at the stock's exact size in millimetres. Use whichever suits you.
 
 Two things make the badge work on the day, whatever you print on:
-  - the QR text encoded exactly as sent, and scannable - our door scanners
-    read it, and a code that does not scan holds a delegate up;
-  - the name legible at arm's length, in the script we sent it in.
+  - the QR text, encoded exactly as sent and scannable. Our door scanners
+    read it, and a code that does not scan holds a delegate up.
+  - the name, legible at arm's length and in the script we sent it in.
 
 There are also two routes for telling us how a badge went, "printed" and
 "failed". They are available, not required - see TELLING US HOW IT WENT.
@@ -98,11 +96,15 @@ checking your code takes in its stride.
 Within a few seconds the client saves each badge into the "badges" folder
 beside these files: <id>.png (the rendered picture), <id>.json (everything,
 including the data you would fill your own design with) and <id>.pdf when the
-badge carries one. One badge arrives only through the client's regular poll of
-the waiting list, so it can take about 10 seconds. One badge is cancelled and
-the client skips it, which is correct. Two more are deliberate attempts to make
-you print the same badge twice; the client does not, and neither must your
-system. Read NEVER PRINT A BADGE TWICE below.
+badge carries one.
+
+What you should see, and why:
+  - one badge takes about 10 seconds, because it arrives only through the
+    client's regular poll of the waiting list;
+  - one badge is cancelled, and the client skips it. That is correct.
+  - two badges are deliberate attempts to make you print the same badge
+    twice. The client does not, and neither must your system. Read NEVER
+    PRINT A BADGE TWICE below.
 
 If macOS refuses to open the .command file, right-click it and choose Open, or
 run it from Terminal:  bash start-client-mac.command
@@ -180,13 +182,14 @@ with your X-Print-Collector header on the request. The reference client does
 this already: "printed" when its print hook returns, "failed" with the error
 text when it raises.
 
-What we do with them: a "failed" report reaches the desk and is shown there
-like any other print failure, with your reason in the sentence ("Desk 1: the
-print partner reported a failure - out of ribbon"), and the operator is offered
-a reprint, which reaches you as a new badge with a new job key. Without it, a
-jam and a successful print look identical from the desk: the iPad says printed,
-the steward turns round, and there is nothing to hand over. A "printed" report
-closes the badge quietly.
+What we do with them. A "failed" report reaches the desk and is shown like any
+other print failure, with your reason in the sentence ("Desk 1: the print
+partner reported a failure - out of ribbon"). We offer the operator a reprint,
+which reaches you as a new badge with a new job key.
+
+Without it, a jam and a successful print look identical from the desk: the iPad
+says printed, the steward turns round, and there is nothing to hand over. A
+"printed" report closes the badge quietly.
 
 Nothing depends on them. A client that never sends them behaves exactly the
 same, and no badge waits for one. Report once per badge; a repeat is accepted
@@ -200,7 +203,8 @@ NEVER PRINT A BADGE TWICE
 A delegate holding two badges is the complaint we hear at the desk. The hub
 announces each badge three times on every network, and the waiting list repeats
 it every 5 seconds, so you will hear about one badge five or six times on an
-ordinary morning. That is normal, not a fault.
+ordinary morning. That is normal, not a fault - your software has to print it
+once anyway.
 
 Each badge carries a job id ("id") and the desk's job key ("jobKey"). The hub
 serves a badge to ONE collector and answers 409 to a second. The reference

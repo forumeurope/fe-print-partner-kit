@@ -3,18 +3,18 @@
 Spec version 1 (17 September 2026). Changes are listed at the end.
 
 When a delegate checks in at an FE event, one of our desk iPads asks our print
-hub for that person's badge. In print partner mode the hub does not print it.
-It renders the badge, holds it, and puts a UDP datagram on the event network —
-port 8632, carrying a job id and a pickup URL. Your software fetches that URL
-and gets the badge as JSON: the delegate's name, the name in their own script
-if they have one, their organisation, job title and delegate type, the exact
-text for the QR code, and a print-ready PNG of the whole badge. You print it on
-your own printers, on your own stock.
+hub for that person's badge. In print partner mode the hub does not print it
+itself. It renders the badge, holds it, and announces it on the event network:
+a small UDP message on port 8632 carrying a job id and a pickup URL.
+
+Your software fetches that URL. It gets the badge as JSON — the delegate's
+name, their name in their own script if we hold one, their organisation, job
+title and delegate type, the exact text for the QR code, and a print-ready PNG
+of the whole badge. You print it on your own printers, on your own stock.
 
 The rest of this document is the detail: the datagram, the pickup, the waiting
-list, every field, the timing, the two routes you can use to tell us how a
-badge went, and the rules that keep one delegate from walking away with two
-badges.
+list, every field, the timing, the two routes for telling us how a badge went,
+and the rules that stop a delegate walking away with two badges.
 
 ## 1. What this interface is for
 
@@ -34,12 +34,13 @@ finished PDF (`pdf`). Those are there for a partner who would rather not lay
 anything out, and as a cross-check for one who does — they are exactly what our
 own thermal printers produce. They are a convenience, not the expected route.
 
-Two things about the badge itself are worth knowing whatever you print on,
-because they are what makes it work on the day. The QR payload has to be
-encoded exactly as we send it and has to scan: it is what our scanners read at
-the door, and a code that does not scan is a delegate held up at a barrier. And
-the name has to be legible at arm's length in the script we sent it in, because
-that is what a steward reads out.
+Two things matter on the day, whatever you print on:
+
+- **The QR code.** Encode the `qr` text exactly as we send it, and check it
+  scans. Our door scanners read it, and a code that does not scan holds a
+  delegate up at the barrier.
+- **The name.** It has to be legible at arm's length, in the script we sent it
+  in. A steward reads it out.
 
 There are also two routes for telling us how a badge went, `printed` and
 `failed` (section 8). They are available, not required: a partner that never
@@ -153,16 +154,19 @@ A real datagram, from `samples/doorbell.json`:
 The datagram carries nothing about the person — no name, no organisation, no
 code. All of that comes from the pickup URL.
 
-**Collect from the address we gave you**, treating the datagram as "there is
-something to fetch" rather than as an address. A hub with more than one
-interface may name a host in `pickup` that you cannot route to, and if a second
-hub is on the network its badges will answer `404` on yours, which you can
-safely ignore. If you have no address configured, use the datagram's source
-address with the port and path from `pickup`; the reference client uses the
-address it was started with.
+**Collect from the address we gave you.** Treat the datagram as "there is
+something to fetch", not as the address to fetch it from. Two reasons: a hub
+with more than one network card can name a host in `pickup` that you cannot
+reach, and a second hub on the network would offer you badges that yours
+answers `404` for. Those `404`s are harmless; ignore them.
 
-**Datagrams get lost.** That is why we ask for an Ethernet cable, and why
-the waiting list in section 7 exists. Poll it regardless of how reliable the broadcasts look.
+If you have no address configured, use the datagram's source address with the
+port and path from `pickup`. The reference client uses the address it was
+started with.
+
+**Datagrams get lost.** That is why we ask for an Ethernet cable, and why the
+waiting list in section 7 exists. Poll it however reliable the broadcasts
+look.
 
 ## 6. Collecting a badge
 
@@ -171,21 +175,21 @@ GET http://<hub>:8631/v1/prints/<id>
 X-Print-Collector: acme-print-1
 ```
 
-Send your collector id on every request, and keep the same value across
-restarts. It is any text up to 100 characters — a machine name, or a UUID you
+Send your collector id on every request, and use the same value after a
+restart. It is any text up to 100 characters: a machine name, or a UUID you
 generate once and keep in a file, as the reference client does in
-`printed.json`. It is what lets the hub tell your retry apart from a second
+`printed.json`. It is how the hub tells your own retry apart from a second
 machine that should not be printing.
 
 The hub answers `200 OK` with `Content-Type: application/json; charset=utf-8`
 and `Cache-Control: no-store`.
 
 The first successful `GET` collects the badge, and from that moment the desk
-considers it handed over. **One badge goes to one collector.** Repeating the
-request with the same `X-Print-Collector` returns the same badge, so a dropped
-connection costs you nothing. A request with a different `X-Print-Collector`,
-or with none, gets `409 Conflict` — somebody else is printing that badge, and
-section 11 explains what to do about it.
+counts it as handed over. **One badge goes to one collector.** Repeat the
+request with the same `X-Print-Collector` and you get the same badge back, so a
+dropped connection costs you nothing. A request with a different
+`X-Print-Collector`, or with none, gets `409 Conflict`: somebody else is
+printing that badge. Section 11 says what to do about it.
 
 A real badge, from `samples/pickup.json`, with the base64 payloads cut short:
 
@@ -363,10 +367,10 @@ turned it on** — it is a per-event setting, off by default, that we enable whe
 a partner asks for it. It is drawn from the same layout as the PNG, so the two
 are the same badge, but the text stays vector with the fonts embedded (Arabic
 included) and the page is the stock's size, which saves you guessing at a DPI.
-Take `widthMm` and `heightMm` as the authoritative dimensions: the page box
-itself is those in whole points, so it can sit a fraction of a point inside
-them. Print it at 100%, with no scaling and no fit-to-page. Choose it if your workflow is happier with PDF; otherwise
-ignore it.
+Take `widthMm` and `heightMm` as the real dimensions: the page box is those
+rounded to whole points, so it can sit a fraction of a point inside them. Print
+it at 100%, with no scaling and no fit-to-page. Use the PDF if your workflow
+prefers PDF; otherwise ignore it.
 
 | Field | Type | Meaning |
 |-------|------|---------|
@@ -374,12 +378,11 @@ ignore it.
 | `widthMm`, `heightMm` | number | The page size, matching `size`. |
 | `base64` | string | The PDF, base64. |
 
-A word on size: the PDF is roughly five times the PNG — a few hundred
-kilobytes against a few tens — so a badge that carries both is a few hundred
-kilobytes in total. That is per collect, and only for an event that asked for a
-PDF; every other event sends the PNG alone and the `pdf` field is simply
-absent. `GET /v1/prints` stays small whatever happens: it lists ids and URLs,
-never payloads.
+A word on size. The PDF is roughly five times the PNG: a few hundred kilobytes
+against a few tens. So a badge carrying both is a few hundred kilobytes, once,
+at collect — and only at an event that asked for a PDF. Every other event sends
+the PNG alone and leaves `pdf` out. The waiting list stays small either way: it
+lists ids and URLs, never payloads.
 
 ## 7. The waiting list
 
@@ -436,16 +439,18 @@ deduplication rules are all unchanged, and no badge is held back waiting for a
 report. The reference client sends them by default, and you can take that out
 without affecting anything else it does.
 
-**What we do with them.** A `failed` report reaches the desk immediately. We
-show it there as we would any other print failure, with your reason in the
-sentence — "Desk 1: the print partner reported a failure — out of ribbon" — and
-the operator is offered a reprint, which comes back to you as a new badge with
-a new `jobKey`. Without it, a collected badge and a printed badge look the same
-from the desk: the iPad shows the badge as printed and the steward turns round
-to hand over something that never came out. A `printed` report closes the badge
-quietly and interrupts nobody. Both feed counters on the hub, which is how we
-see a printer going wrong from our side rather than from the length of the
-queue.
+**What we do with them.** A `failed` report reaches the desk straight away. We
+show it like any other print failure, with your reason in the sentence — "Desk
+1: the print partner reported a failure — out of ribbon" — and we offer the
+operator a reprint. That reprint comes back to you as a new badge with a new
+`jobKey`.
+
+This is worth having, because without it a collected badge and a printed badge
+look identical from the desk: the iPad says printed, and the steward turns
+round to hand over something that never came out of the printer. A `printed`
+report closes the badge quietly and interrupts nobody. Both feed counters on
+the hub, so we can see a printer going wrong instead of guessing from the
+length of the queue.
 
 **The rules, if you use them.**
 
@@ -524,12 +529,12 @@ So one desk request never leaves you holding two live job ids. Beyond that:
 
 ## 10. Never print a badge twice
 
-A delegate holding two badges is the complaint we hear at the desk, and the one
-with the older serial is the one that stops at the door. Duplicates are not a
-malfunction here — they are the normal shape of the traffic. We announce each
-badge three times on every network and you poll the waiting list every 5
-seconds, so one badge reaches you five or six times on an ordinary morning.
-Printing it once is as much your job as ours.
+A delegate holding two badges is the complaint we hear at the desk, and the
+older one is what stops them at the door. Repeats are not a fault here — they
+are how the traffic normally looks. We announce each badge three times on every
+network, and you poll the waiting list every 5 seconds, so one badge reaches
+you five or six times on an ordinary morning. Printing it exactly once is as
+much your job as ours.
 
 **What we guarantee**
 
@@ -578,8 +583,8 @@ Printing it once is as much your job as ours.
 
 **If your printer jams after you collected the badge**
 
-We have already counted the badge as collected and the desk has moved on, and
-there is no way to hand it back. So:
+We have already counted the badge as collected and the desk has moved on.
+There is no way to hand it back. So:
 
 1. Clear the jam and print from the copy you saved — this is why the reference
    client writes the PNG and JSON to disk before printing.
@@ -592,9 +597,9 @@ Never retry by collecting again. The `id` you hold is the only copy we keep,
 and collecting somebody else's badge by mistake is exactly the duplicate we are
 all trying to avoid.
 
-**Testing this deliberately.** `fake-partner-hub.py` tries to make your client
-print twice: it announces everything three times, re-offers one badge under a
-new `id` with the same `jobKey` after you collect it ("Robin Retry"), and keeps
+**Test this on purpose.** `fake-partner-hub.py` tries to make your client print
+twice. It announces everything three times, re-offers one badge under a new
+`id` with the same `jobKey` after you collect it ("Robin Retry"), and leaves
 another on the waiting list for ever after collection ("Ash Repeat"). Run two
 copies of your client at once, restart them, and check that each badge came out
 exactly once.
@@ -642,29 +647,33 @@ In another:
 python print-partner-client.py --hub 127.0.0.1
 ```
 
-The client saves three waiting badges immediately, finds a fourth only through
-the waiting list, and correctly refuses a fifth that has been cancelled. Open
-`http://127.0.0.1:8631/` and use **Send a sample print** for more; that page
-tells you whether you collected the badge within 10 seconds, and shows the
-reports it has received from you. Options: `--every 20` sends a sample badge
-every 20 seconds, `--mode manage` answers `409`, `--mode locked` answers `503`.
-Then stop your client, send a sample badge, wait 10 seconds, start the client
-again, and confirm that badge does not print.
+The client saves three waiting badges straight away, finds a fourth only
+through the waiting list, and refuses a fifth that has been cancelled — which
+is the correct behaviour.
 
-**Testing the PDF path.** The stand-in hub sends a `pdf` on every badge, so
-you can try that route before you have ever seen our hardware: start it, let
-your client collect a job, and print the saved `<id>.pdf` on the stock you
-intend to use. `--no-pdf` makes it behave like an event that has the setting
-switched off, so you can check your code takes that in its stride. The kit also
-carries `samples/pickup.pdf`, a badge our own hub produced, if you would rather
-print one before you write anything.
+For more badges, open `http://127.0.0.1:8631/` and use **Send a sample print**.
+That page tells you whether you collected the badge within 10 seconds, and
+shows the reports it has had from you. The stand-in hub also takes `--every 20`
+(a sample badge every 20 seconds), `--mode manage` (answers `409`) and `--mode
+locked` (answers `503`).
 
-**There is no joint test before the event.** The first time your software
-meets our hub is at the venue on setup day. That is why the stand-in hub is in
-the kit: it sends the same datagrams and serves the same badge payloads as the
-real one, on the same ports, with the same status codes, so a system that works
-against it works against ours. Build and test against it until you are
-satisfied, and tell us before the event that you are.
+One test worth doing deliberately: stop your client, send a sample badge, wait
+10 seconds, start the client again, and confirm that badge does not print.
+
+**Testing the PDF path.** The stand-in hub sends a `pdf` on every badge, so you
+can try that route before you have seen our hardware. Start it, let your client
+collect a badge, and print the saved `<id>.pdf` on the stock you intend to use.
+Start it with `--no-pdf` and it behaves like an event that has the setting
+switched off, which is worth checking your code takes in its stride. The kit
+also carries `samples/pickup.pdf`, a badge our own hub produced, if you would
+rather print one before you write anything.
+
+**There is no joint test before the event.** The first time your software meets
+our hub is at the venue on setup day. That is why the stand-in hub is in the
+kit. It sends the same datagrams and serves the same badges as the real one, on
+the same ports, with the same status codes, so a system that works against it
+works against ours. Build and test against it until you are satisfied, then
+tell us you are.
 
 **What to have ready on setup day:**
 
