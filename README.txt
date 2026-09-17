@@ -112,7 +112,7 @@ Stop either window with Ctrl-C, or close it.
 
 QUICK START B - at the event, against the real hub
 --------------------------------------------------
-  1. Put a network cable into our router; we give you the port. Use the
+  1. Put an Ethernet cable into our router; we give you the port. Use the
      cable. Wi-Fi drops broadcasts and degrades in a crowd, so we give you
      Wi-Fi details only as a fallback.
   2. We give you the hub's address on the day (for example 192.168.8.20).
@@ -131,7 +131,7 @@ a system that works against it works against ours.
 
 Have ready on setup day: the machine that will run all event, with your
 software installed and already working against the stand-in hub; your printers,
-stock and consumables; a network cable for our router; and somebody who can
+stock and consumables; an Ethernet cable for our router; and somebody who can
 change your settings on the spot.
 
 Do not run the stand-in hub at the event.
@@ -248,7 +248,7 @@ RULES THAT MATTER
 TROUBLESHOOTING
 ---------------
 No badges arrive:
-  - Is your cable in our router, and is the link light on?
+  - Is your Ethernet cable in our router, and is the link light on?
   - Is the firewall blocking Python? See FIREWALL above.
   - Start the client with the hub's address (--hub <address>, or type it when
     the client asks). It then also polls the hub's waiting list every 5

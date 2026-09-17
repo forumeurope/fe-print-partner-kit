@@ -91,7 +91,7 @@ printed.
 
 | We provide | You provide |
 |------------|-------------|
-| A port on our event router, and a cable to it | A computer on that cable, running your software for the whole event |
+| A port on our event router, and an Ethernet cable to it | A computer on that Ethernet cable, running your software for the whole event |
 | The hub, and its address on the day | Listening for datagrams, and polling the waiting list |
 | One datagram per badge a desk asks for | The design, the printers, the stock, the ribbons, the drivers and the operators |
 | The badge data: name, local-script name, organisation, job title, delegate type, QR payload, serial, event | Your own layout — or, if you would rather not, printing the picture we send |
@@ -100,7 +100,7 @@ printed.
 
 ## 4. The network
 
-- **Use a cable.** We give you a port on the event router. Wi-Fi drops
+- **Use an Ethernet cable.** We give you a port on the event router. Wi-Fi drops
   broadcasts and degrades in a crowd, and a badge is not something that can
   wait for the network to recover; we will give you Wi-Fi credentials as a
   fallback, not as the plan.
@@ -161,8 +161,8 @@ safely ignore. If you have no address configured, use the datagram's source
 address with the port and path from `pickup`; the reference client uses the
 address it was started with.
 
-**Datagrams get lost.** That is why we ask for a cable, and why the waiting list
-in section 7 exists. Poll it regardless of how reliable the broadcasts look.
+**Datagrams get lost.** That is why we ask for an Ethernet cable, and why
+the waiting list in section 7 exists. Poll it regardless of how reliable the broadcasts look.
 
 ## 6. Collecting a badge
 
@@ -671,7 +671,7 @@ satisfied, and tell us before the event that you are.
 - the laptop or machine that will run all event, with your software installed
   and already working end to end against the stand-in hub;
 - your printers, your stock and enough consumables for the day;
-- a network cable for our router — we provide the port;
+- an Ethernet cable for our router — we provide the port;
 - somebody who can change your settings on the spot, rather than a machine
   nobody present can reconfigure.
 
@@ -685,7 +685,7 @@ collection, and the number of badges waiting.
 | Symptom | Likely cause |
 |---------|--------------|
 | Nothing arrives and you cannot reach the waiting list | You are not on the event network, the hub address is wrong, or something is blocking TCP 8631. |
-| The waiting list works but no datagrams arrive | A firewall is blocking UDP 8632 inbound (on Windows: the network is Public, or Python is not allowed), or you are on Wi-Fi that isolates clients. Use the cable. Badges still arrive through the waiting list, just later. |
+| The waiting list works but no datagrams arrive | A firewall is blocking UDP 8632 inbound (on Windows: the network is Public, or Python is not allowed), or you are on Wi-Fi that isolates clients. Use the Ethernet cable. Badges still arrive through the waiting list, just later. |
 | "cannot listen on UDP 8632" | Another program holds the port exclusively. Close it. |
 | Constant `409`, "Not in print partner mode" | The hub is not in partner mode. Ask us to switch it. |
 | `409`, "Already collected" or "Not your badge" | Another collector has that badge: a spare machine, an old process, or a second copy of your software. Stop the extra one; do not print the badge. |
